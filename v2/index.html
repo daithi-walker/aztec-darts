@@ -204,8 +204,9 @@ Then open: http://localhost:8181</pre>
     <div id="game-status" style="font-size:15px;font-weight:bold;min-width:120px;text-align:center;"></div>
     <div id="darts-left" style="font-size:18px;letter-spacing:2px;"></div>
     <button id="miss-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #444;color:#888;border-radius:4px;cursor:pointer;font-size:11px;">Miss</button>
+    <button id="pass-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #554;color:#a86;border-radius:4px;cursor:pointer;font-size:11px;">Pass</button>
     <button id="undo-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #446;color:#88a;border-radius:4px;cursor:pointer;font-size:11px;">↩ Undo</button>
-    <button id="newgame-btn" style="padding:4px 10px;background:#1a1a1a;border:1px solid #554;color:#a86;border-radius:4px;cursor:pointer;font-size:11px;">New Game</button>
+    <button id="newgame-btn" style="padding:4px 10px;background:#1a1a1a;border:1px solid #644;color:#a66;border-radius:4px;cursor:pointer;font-size:11px;">New Game</button>
     <button id="home-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #444;color:#888;border-radius:4px;cursor:pointer;font-size:11px;">⌂</button>
   </div>
 
@@ -320,11 +321,15 @@ const MAX_PTS        = 3;
 
 // Double / triple ring radii (fraction of total scoring width)
 const BAND           = BOARD_R - INNER_R;
-const TRIPLE_IN      = INNER_R + BAND * 0.37;
-const TRIPLE_OUT     = INNER_R + BAND * 0.47;
-const DOUBLE_IN      = INNER_R + BAND * 0.83;
+const TRIPLE_IN      = INNER_R + BAND * 0.34;
+const TRIPLE_OUT     = INNER_R + BAND * 0.52;
+const DOUBLE_IN      = INNER_R + BAND * 0.77;
 const DOUBLE_OUT     = BOARD_R;
 const RING_Y_BASE    = BOARD_H / 2 + 0.018;  // just above wedge top face
+
+// Bull radii from real dartboard proportions (inner=6.35mm, outer=15.9mm scaled)
+const BULL_INNER_R   = 6.35  * (BOARD_R / MODEL_OUTER_MM);   // ~0.233
+const BULL_OUTER_R   = 15.9  * (BOARD_R / MODEL_OUTER_MM);   // ~0.583
 
 const DART_NUMBERS = [20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const ANGLE_STEP   = (Math.PI * 2) / DART_NUMBERS.length;
@@ -950,33 +955,34 @@ function spawnFlash(pos, color) {
 }
 
 // Determine hit from world-space intersection point on the disc
-// Returns { number, multiplier, zone } or null if off-board / bull
+// Returns { number, multiplier, zone, flashCol, hitPt } or null (off-board = miss)
 function classifyHit(pt) {
   const x = pt.x, z = pt.z;
   const r = Math.sqrt(x * x + z * z);
 
-  // Bull
-  if (r < INNER_R * 1.15) {
-    const mult = r < INNER_R * 0.5 ? 2 : 1;  // inner/outer bull
-    return { number: 25, multiplier: mult, zone: mult === 2 ? 'Inner Bull' : 'Outer Bull' };
+  // Inner bull (double bull = 2 marks)
+  if (r <= BULL_INNER_R) {
+    return { number: 25, multiplier: 2, zone: 'Inner Bull', flashCol: 0xffdd00, hitPt: pt };
   }
-  if (r > BOARD_R) return null; // miss
+  // Outer bull (single bull = 1 mark)
+  if (r <= BULL_OUTER_R) {
+    return { number: 25, multiplier: 1, zone: 'Outer Bull', flashCol: 0xffaa00, hitPt: pt };
+  }
+  // Outside board edge = miss
+  if (r > BOARD_R) return null;
 
-  // Angle: atan2 returns angle from +X axis; board 0° = -Z (12 o'clock).
-  // wedge i=0 (20) sits at yRot=Math.PI → centred on -Z.
-  // angle from -Z axis, clockwise:
-  let angle = Math.atan2(x, -z);             // 0 at -Z, increases clockwise
-  if (angle < 0) angle += Math.PI * 2;       // normalise to [0, 2π)
-
+  // Angle from -Z (12 o'clock), clockwise
+  let angle = Math.atan2(x, -z);
+  if (angle < 0) angle += Math.PI * 2;
   const i = Math.round(angle / ANGLE_STEP) % DART_NUMBERS.length;
   const number = DART_NUMBERS[i];
 
   // Zone by radius
   let multiplier, zone, flashCol;
-  if (r >= DOUBLE_IN && r <= DOUBLE_OUT) {
-    multiplier = 2; zone = 'Double'; flashCol = 0xff3311;
+  if (r >= DOUBLE_IN) {
+    multiplier = 2; zone = 'Double'; flashCol = 0xff2200;
   } else if (r >= TRIPLE_IN && r <= TRIPLE_OUT) {
-    multiplier = 3; zone = 'Triple'; flashCol = 0x22cc44;
+    multiplier = 3; zone = 'Triple'; flashCol = 0x00dd44;
   } else {
     multiplier = 1; zone = 'Single'; flashCol = 0xffffff;
   }
@@ -988,6 +994,8 @@ function classifyHit(pt) {
 let _pointerDown = null;
 
 function onPointerDown(e) {
+  // Ignore taps that start on UI elements
+  if (e.target !== renderer.domElement) return;
   const src = e.touches ? e.touches[0] : e;
   _pointerDown = { x: src.clientX, y: src.clientY };
 }
@@ -1008,9 +1016,11 @@ function onPointerUp(e) {
 
   raycaster.setFromCamera(_mouse, camera);
   const hits = raycaster.intersectObject(hitDisc);
-  if (!hits.length) return;
+  // Tap off the board disc entirely = miss for this dart
+  if (!hits.length) { registerMiss(); return; }
 
   const result = classifyHit(hits[0].point);
+  // Tap on disc but outside board scoring area = miss
   if (!result) { registerMiss(); return; }
 
   const { number, multiplier, zone, flashCol, hitPt } = result;
@@ -1114,6 +1124,12 @@ function registerMiss() {
   if (gameOver || dartsLeft === 0) return;
   pushHistory('Miss', null, 0, currentPlayer);
   advanceDart();
+}
+
+// Pass = burn all remaining darts as misses and end the turn immediately
+function registerPass() {
+  if (gameOver) return;
+  while (dartsLeft > 0) registerMiss();
 }
 
 function advanceDart() {
@@ -1553,6 +1569,7 @@ try {
 
   document.getElementById('home-btn').addEventListener('click', goHome);
   document.getElementById('miss-btn').addEventListener('click', registerMiss);
+  document.getElementById('pass-btn').addEventListener('click', registerPass);
   document.getElementById('undo-btn').addEventListener('click', undoLast);
   document.getElementById('newgame-btn').addEventListener('click', resetAll);
   renderer.domElement.addEventListener('dblclick', goHome);
