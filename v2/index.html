@@ -33,16 +33,25 @@
     /* ── top-center turn status bar ── */
     #turn-bar {
       position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-      z-index: 10; background: rgba(0,0,0,0.72);
-      border: 1px solid #444; border-top: none; border-radius: 0 0 10px 10px;
-      padding: 6px 24px 8px; display: flex; align-items: center; gap: 14px;
-      white-space: nowrap;
+      z-index: 10; background: rgba(0,0,0,0.82);
+      border: 1px solid #555; border-top: none; border-radius: 0 0 18px 18px;
+      padding: 16px 36px 22px; display: flex; align-items: center; gap: 20px;
+      white-space: nowrap; cursor: pointer; user-select: none;
+      min-width: 320px; justify-content: center;
+    }
+    #turn-bar:active { background: rgba(30,20,0,0.88); }
+    #turn-bar .miss-hint {
+      font-size: 9px; color: #444; position: absolute; bottom: 5px;
+      left: 50%; transform: translateX(-50%); white-space: nowrap; letter-spacing: 1px;
+    }
+    #turn-bar button {
+      padding: 12px 18px; font-size: 13px; border-radius: 6px; cursor: pointer; line-height: 1;
     }
 
     .ui-col {
-      position: absolute; top: 56px; z-index: 10; width: 220px;
+      position: absolute; top: 92px; z-index: 10; width: 220px;
       display: flex; flex-direction: column;
-      height: calc(100vh - 72px);
+      height: calc(100vh - 108px);
     }
     #ui-left  { left: 16px; }
     #ui-right { right: 16px; overflow-y: auto; }
@@ -60,6 +69,26 @@
     }
     #last-hit-zone {
       text-align: center; font-size: 13px; color: #888; margin-bottom: 4px;
+    }
+    /* quick-edit row below Last Hit */
+    #last-hit-edit {
+      display: none; flex-direction: column; gap: 4px; margin-top: 6px;
+      border-top: 1px solid #333; padding-top: 6px;
+    }
+    #last-hit-num-row {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    #last-hit-num-row button {
+      background: none; border: none; color: #555; font-size: 18px; cursor: pointer; padding: 0 6px;
+    }
+    #last-hit-cur { font-size: 28px; font-weight: bold; min-width: 52px; text-align: center; }
+    #last-hit-prev, #last-hit-next { font-size: 13px; color: #444; min-width: 30px; text-align: center; }
+    #last-hit-mult-row {
+      display: flex; gap: 4px; justify-content: center;
+    }
+    #last-hit-mult-row button {
+      flex: 1; max-width: 52px; padding: 3px 0; border-radius: 4px; cursor: pointer;
+      font-size: 12px; font-weight: bold; border: 1px solid #333; background: #111; color: #555;
     }
     .zone-legend { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
     .zone-row {
@@ -201,26 +230,44 @@ Then open: http://localhost:8181</pre>
 
   <!-- TOP CENTER: turn status bar -->
   <div id="turn-bar" style="display:none">
-    <div id="game-status" style="font-size:15px;font-weight:bold;min-width:120px;text-align:center;"></div>
-    <div id="darts-left" style="font-size:18px;letter-spacing:2px;"></div>
-    <button id="miss-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #444;color:#888;border-radius:4px;cursor:pointer;font-size:11px;">Miss</button>
-    <button id="pass-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #554;color:#a86;border-radius:4px;cursor:pointer;font-size:11px;">Pass</button>
-    <button id="undo-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #446;color:#88a;border-radius:4px;cursor:pointer;font-size:11px;">↩ Undo</button>
-    <button id="newgame-btn" style="padding:4px 10px;background:#1a1a1a;border:1px solid #644;color:#a66;border-radius:4px;cursor:pointer;font-size:11px;">New Game</button>
-    <button id="home-btn"    style="padding:4px 10px;background:#1a1a1a;border:1px solid #444;color:#888;border-radius:4px;cursor:pointer;font-size:11px;">⌂</button>
+    <div id="game-status" style="font-size:18px;font-weight:bold;min-width:140px;text-align:center;"></div>
+    <button id="miss-btn"    style="background:#1a1a1a;border:1px solid #444;color:#888;">Miss</button>
+    <button id="pass-btn"    style="background:#1a1a1a;border:1px solid #554;color:#a86;">Pass</button>
+    <button id="undo-btn"    style="background:#1a1a1a;border:1px solid #446;color:#88a;">↩ Undo</button>
+    <button id="newgame-btn" style="background:#1a1a1a;border:1px solid #644;color:#a66;">New Game</button>
+    <button id="home-btn"    style="background:#1a1a1a;border:1px solid #444;color:#888;">⌂</button>
   </div>
 
   <!-- LEFT: tap-to-hit info + history -->
   <div id="ui-left" class="ui-col" style="display:none">
+    <div id="darts-left" style="font-size:28px;letter-spacing:5px;text-align:center;padding:6px 0 4px;"></div>
     <div class="panel">
       <h3>Last Hit</h3>
       <div id="last-hit-val" style="color:#888;">—</div>
       <div id="last-hit-zone"></div>
-      <div class="zone-legend">
+      <!-- quick-edit: visible after a dart is registered -->
+      <div id="last-hit-edit">
+        <div id="last-hit-num-row">
+          <button id="lh-prev">‹</button>
+          <div style="display:flex;align-items:baseline;gap:2px;justify-content:center;flex:1;">
+            <span id="last-hit-prev"></span>
+            <span id="last-hit-cur"></span>
+            <span id="last-hit-next"></span>
+          </div>
+          <button id="lh-next">›</button>
+        </div>
+        <div id="last-hit-mult-row">
+          <button data-mult="1">S</button>
+          <button data-mult="2">D</button>
+          <button data-mult="3">T</button>
+        </div>
+      </div>
+      <div class="zone-legend" style="margin-top:8px;">
         <div class="zone-row"><div class="zone-swatch" style="background:#eee;"></div><span>Single</span></div>
         <div class="zone-row"><div class="zone-swatch" style="background:#cc2a10;"></div><span>Double — outer ring</span></div>
         <div class="zone-row"><div class="zone-swatch" style="background:#12a030;"></div><span>Triple — inner ring</span></div>
-        <div class="zone-row"><div class="zone-swatch" style="background:#ffcc00;"></div><span>Bull — centre</span></div>
+        <div class="zone-row"><div class="zone-swatch" style="background:#ffaa00;"></div><span>Outer Bull</span></div>
+        <div class="zone-row"><div class="zone-swatch" style="background:#ffdd00;"></div><span>Inner Bull (double)</span></div>
       </div>
     </div>
     <div class="panel" style="flex:1;display:flex;flex-direction:column;min-height:0;">
@@ -316,7 +363,8 @@ const BOARD_R        = 2.2;
 const SCALE          = BOARD_R / MODEL_OUTER_MM;
 const BOARD_H        = MODEL_H_MM * SCALE;
 const INNER_R        = MODEL_INNER_MM * SCALE;
-const DROP_DEPTH     = -0.6;
+const DROP_DEPTH     = -0.6;  // kept for legacy reference, not used for scaling
+// scaleY targets: 1=full height, 2/3=one shared pip, 1/3=two shared pips, 0=closed
 const MAX_PTS        = 3;
 
 // Double / triple ring radii (fraction of total scoring width)
@@ -564,8 +612,8 @@ function makeWedgeState(n, i) {
     p1marks: 0, p2marks: 0,
     closed: false,
     lockedBy: 0,  // 0=none, 1=P1 reached 3 first, 2=P2 reached 3 first
-    dropY: 0, targetDropY: 0,
-    flameIntensity: 0, flameHeight: 0,
+    dropY: 1, targetDropY: 1,
+    flameIntensity: 0, flameHeight: 0, flameBurst: 0,
     flamePlayer: 0, // 1 or 2, who controls this wedge
   };
 }
@@ -609,11 +657,11 @@ function pushHistory(label, number, multiplier, player) {
 }
 
 // Parse a label string back to { number, multiplier }
-// Formats: "T20" "D5" "S15" "Bull" "DBull" "Miss" "—"
+// Formats: "T20" "D5" "S15" "OB" "IB" "—"
 function parseLabel(lbl) {
   if (!lbl || lbl === '—' || lbl === 'Miss') return { number: null, multiplier: 0 };
-  if (lbl === 'Bull' || lbl === 'OBull') return { number: 25, multiplier: 1 };
-  if (lbl === 'IBull' || lbl === 'DBull') return { number: 25, multiplier: 2 };
+  if (lbl === 'OB' || lbl === 'Bull' || lbl === 'OBull') return { number: 25, multiplier: 1 };
+  if (lbl === 'IB' || lbl === 'IBull' || lbl === 'DBull') return { number: 25, multiplier: 2 };
   const m = lbl.match(/^([SDT]?)(\d+)$/i);
   if (!m) return { number: null, multiplier: 0 };
   const mult = { S: 1, D: 2, T: 3, '': 1 }[m[1].toUpperCase()] ?? 1;
@@ -627,11 +675,11 @@ const turnTotals = {}; // { [turnNum]: { p1, p2 } }
 function replayAll() {
   wedgeStates.forEach(ws => Object.assign(ws, {
     p1marks: 0, p2marks: 0, closed: false, lockedBy: 0,
-    dropY: 0, targetDropY: 0, flameIntensity: 0, flameHeight: 0, flamePlayer: 0,
+    dropY: 1, targetDropY: 1, flameIntensity: 0, flameHeight: 0, flameBurst: 0, flamePlayer: 0,
   }));
   Object.assign(bullState, {
     p1marks: 0, p2marks: 0, closed: false, lockedBy: 0,
-    dropY: 0, targetDropY: 0, flameIntensity: 0, flameHeight: 0, flamePlayer: 0,
+    dropY: 1, targetDropY: 1, flameIntensity: 0, flameHeight: 0, flameBurst: 0, flamePlayer: 0,
   });
   currentPlayer = 1; dartsLeft = 3; turnNum = 1;
   p1Points = 0; p2Points = 0;
@@ -662,6 +710,7 @@ function replayAll() {
   updateTurnUI();
   renderCricketBoard();
   renderHistory();
+  if (typeof updateLastHitUI === 'function') updateLastHitUI();
 }
 
 function undoLast() {
@@ -709,24 +758,76 @@ function makeDartCell(entry, col) {
     picker.style.top  = top  + 'px';
     picker.style.left = left + 'px';
 
-    // ── Number row ──
+    // Board order carousel: Miss → 20,1,18,4,...,5,Bull → Miss (wraps)
+    // null = Miss, numbers follow DART_NUMBERS, then 25 = Bull
+    const CAROUSEL = [null, ...DART_NUMBERS, 25]; // Miss at index 0, Bull at end
+    const numLabel = n => n === null ? '—' : n === 25 ? 'B' : String(n);
+
+    let carouselIdx = entry.number === null ? 0
+      : entry.number === 25 ? CAROUSEL.length - 1
+      : CAROUSEL.indexOf(entry.number);
+    if (carouselIdx < 0) carouselIdx = 0;
+
+    // ── Number carousel row ──
     const numRow = document.createElement('div');
-    numRow.style.cssText = `display:flex;align-items:center;gap:6px;`;
+    numRow.style.cssText = `display:flex;align-items:center;gap:0;border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:2px;`;
 
-    const numLbl = document.createElement('span');
-    numLbl.style.cssText = `color:#888;font-size:10px;flex-shrink:0;`;
-    numLbl.textContent = 'Number:';
+    const prevBtn = document.createElement('button');
+    const curLbl  = document.createElement('div');
+    const nextBtn = document.createElement('button');
 
-    const numInp = document.createElement('input');
-    numInp.type = 'text';
-    numInp.value = entry.number === null ? 'Miss' : entry.number === 25 ? 'Bull' : String(entry.number);
-    numInp.placeholder = '1–20 / Bull / Miss';
-    numInp.style.cssText = `
-      flex:1;background:#111;border:none;border-bottom:1px solid #555;
-      color:${col};font-size:11px;font-weight:bold;text-align:center;outline:none;padding:2px;
-    `;
-    numRow.appendChild(numLbl);
-    numRow.appendChild(numInp);
+    const btnBase = `background:none;border:none;cursor:pointer;font-size:16px;padding:2px 6px;color:#555;`;
+    prevBtn.style.cssText = btnBase;
+    nextBtn.style.cssText = btnBase;
+    prevBtn.textContent = '‹';
+    nextBtn.textContent = '›';
+
+    curLbl.style.cssText = `flex:1;text-align:center;font-size:14px;font-weight:bold;color:${col};min-width:52px;`;
+
+    const refreshCarousel = () => {
+      const prev = CAROUSEL[(carouselIdx - 1 + CAROUSEL.length) % CAROUSEL.length];
+      const cur  = CAROUSEL[carouselIdx];
+      const next = CAROUSEL[(carouselIdx + 1) % CAROUSEL.length];
+      prevBtn.title = numLabel(prev);
+      nextBtn.title = numLabel(next);
+      curLbl.innerHTML =
+        `<span style="color:#444;font-size:10px;margin-right:6px;">${numLabel(prev)}</span>` +
+        `<span style="color:${col}">${numLabel(cur)}</span>` +
+        `<span style="color:#444;font-size:10px;margin-left:6px;">${numLabel(next)}</span>`;
+    };
+    refreshCarousel();
+
+    const applyCarouselChange = () => {
+      const n = CAROUSEL[carouselIdx];
+      entry.number = n;
+      if (n === null) {
+        entry.multiplier = 0;
+      } else if (n === 25) {
+        if (entry.multiplier === 0 || entry.multiplier > 2) entry.multiplier = 1;
+      } else {
+        if (entry.multiplier === 0) entry.multiplier = 1;
+      }
+      rebuildLabel();
+      refreshMultBtns();
+      replayAll();
+    };
+
+    prevBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      carouselIdx = (carouselIdx - 1 + CAROUSEL.length) % CAROUSEL.length;
+      refreshCarousel();
+      applyCarouselChange();
+    });
+    nextBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      carouselIdx = (carouselIdx + 1) % CAROUSEL.length;
+      refreshCarousel();
+      applyCarouselChange();
+    });
+
+    numRow.appendChild(prevBtn);
+    numRow.appendChild(curLbl);
+    numRow.appendChild(nextBtn);
     picker.appendChild(numRow);
 
     // ── Multiplier row ──
@@ -735,82 +836,50 @@ function makeDartCell(entry, col) {
 
     const rebuildLabel = () => {
       const n = entry.number;
-      if (n === null) { entry.label = 'Miss'; return; }
-      const prefix = n === 25
-        ? (entry.multiplier === 2 ? 'I' : 'O')
-        : (['', 'S', 'D', 'T'][entry.multiplier] ?? 'S');
-      entry.label = prefix + (n === 25 ? 'Bull' : n);
+      if (n === null) { entry.label = '—'; return; }
+      if (n === 25) { entry.label = entry.multiplier === 2 ? 'IB' : 'OB'; return; }
+      entry.label = (['', 'S', 'D', 'T'][entry.multiplier] ?? 'S') + n;
     };
 
     const multOptions = entry.number === 25
-      ? [['O', 1, 'Outer'], ['I', 2, 'Inner']]
-      : [['S', 1], ['D', 2], ['T', 3], ['✕', 0]];
+      ? [['O', 1], ['I', 2]]
+      : entry.number === null
+        ? [['✕', 0]]
+        : [['S', 1], ['D', 2], ['T', 3], ['✕', 0]];
 
     const multBtns = {};
     const refreshMultBtns = () => {
-      const isMiss = entry.number === null;
-      multOptions.forEach(([lbl, mult]) => {
-        const b = multBtns[mult];
-        if (!b) return;
-        const active = isMiss ? mult === 0 : mult === entry.multiplier;
-        b.style.borderColor = active ? col : '#333';
-        b.style.background  = active ? col + '33' : '#111';
-        b.style.color       = active ? col : '#555';
-        b.disabled          = isMiss && mult !== 0;
+      // Rebuild mult row contents when number type changes (Bull↔regular↔Miss)
+      multRow.innerHTML = '';
+      const curNum = entry.number;
+      const opts = curNum === 25 ? [['O',1],['I',2]]
+                 : curNum === null ? [['✕',0]]
+                 : [['S',1],['D',2],['T',3],['✕',0]];
+      opts.forEach(([lbl, mult]) => {
+        const b = document.createElement('button');
+        b.textContent = lbl;
+        const isMiss  = curNum === null;
+        const active  = isMiss ? mult === 0 : mult === entry.multiplier;
+        b.style.cssText = `
+          flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;
+          border:1px solid ${active ? col : '#333'};
+          background:${active ? col + '33' : '#111'};
+          color:${active ? col : '#555'};
+        `;
+        b.addEventListener('click', ev => {
+          ev.stopPropagation();
+          if (mult === 0) { entry.number = null; entry.multiplier = 0; carouselIdx = 0; refreshCarousel(); }
+          else { entry.multiplier = mult; }
+          rebuildLabel();
+          refreshMultBtns();
+          replayAll();
+        });
+        multBtns[mult] = b;
+        multRow.appendChild(b);
       });
     };
-
-    multOptions.forEach(([lbl, mult]) => {
-      const b = document.createElement('button');
-      b.textContent = lbl;
-      const active = entry.number === null ? mult === 0 : mult === entry.multiplier;
-      b.style.cssText = `
-        flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;
-        border:1px solid ${active ? col : '#333'};
-        background:${active ? col + '33' : '#111'};
-        color:${active ? col : '#555'};
-      `;
-      b.addEventListener('click', ev => {
-        ev.stopPropagation();
-        if (mult === 0) {
-          entry.number = null; entry.multiplier = 0;
-        } else {
-          if (entry.number === null) return; // can't set multiplier on a miss
-          entry.multiplier = mult;
-        }
-        rebuildLabel();
-        refreshMultBtns();
-        replayAll();
-      });
-      multBtns[mult] = b;
-      multRow.appendChild(b);
-    });
+    refreshMultBtns();
     picker.appendChild(multRow);
-
-    // Number input commit
-    const commitNum = () => {
-      const raw = numInp.value.trim().toLowerCase();
-      if (raw === 'miss' || raw === '') {
-        entry.number = null; entry.multiplier = 0;
-      } else if (raw === 'bull' || raw === 'b' || raw === '25') {
-        entry.number = 25;
-        if (entry.multiplier === 0) entry.multiplier = 1;
-        if (entry.multiplier > 2)  entry.multiplier = 2;
-      } else {
-        const n = parseInt(raw);
-        if (n >= 1 && n <= 20) {
-          entry.number = n;
-          if (entry.multiplier === 0) entry.multiplier = 1;
-        }
-      }
-      rebuildLabel();
-      refreshMultBtns();
-      replayAll();
-    };
-    numInp.addEventListener('blur', commitNum);
-    numInp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { commitNum(); closePicker(); } });
-
-    setTimeout(() => numInp.focus(), 0);
   });
 
   return dc;
@@ -948,10 +1017,34 @@ function makeArcSegment(innerR, outerR, angleCenter, halfAngle, color) {
 }
 
 // ─── board construction ───────────────────────────────────────────────────────
+function buildFlameMat(seed) {
+  return new THREE.ShaderMaterial({
+    vertexShader:   FLAME_VERT,
+    fragmentShader: FLAME_FRAG,
+    uniforms: {
+      u_time:      { value: 0.0 },
+      u_intensity: { value: 0.0 },
+      u_height:    { value: 0.3 },
+      u_p1Color:   { value: P1_COL.clone() },
+      u_p2Color:   { value: P2_COL.clone() },
+      u_mix:       { value: 0.5 },
+      u_seed:      { value: seed },
+    },
+    transparent: true,
+    depthWrite:  false,
+    side:        THREE.DoubleSide,
+    blending:    THREE.AdditiveBlending,
+  });
+}
+
+// Shared holder for bull mesh animation data (populated in buildBoard)
+const bullMeshData = { mat: null, light: null, flamePlanes: [] };
+
+const PLANE_W        = 0.18;
+const PLANE_H        = 0.58;
+const PLANES_PER_WEDGE = 7;
+
 function buildBoard(wedgeGeo, bullGeo) {
-  const PLANE_W = 0.18;
-  const PLANE_H = 0.58;
-  const PLANES_PER_WEDGE = 7;
 
   DART_NUMBERS.forEach((n, i) => {
     // wedge 0 (number 20) points toward -Z (12 o'clock)
@@ -983,25 +1076,8 @@ function buildBoard(wedgeGeo, bullGeo) {
     // Each plane gets its own ShaderMaterial with a unique u_seed so noise differs.
     const flamePlanes = [];
     for (let f = 0; f < PLANES_PER_WEDGE; f++) {
-      const seed = Math.random() * 100;
-
-      const flameMat = new THREE.ShaderMaterial({
-        vertexShader:   FLAME_VERT,
-        fragmentShader: FLAME_FRAG,
-        uniforms: {
-          u_time:      { value: 0.0 },
-          u_intensity: { value: 0.0 },
-          u_height:    { value: 0.3 },
-          u_p1Color:   { value: P1_COL.clone() },
-          u_p2Color:   { value: P2_COL.clone() },
-          u_mix:       { value: 0.5 },
-          u_seed:      { value: seed },
-        },
-        transparent: true,
-        depthWrite:  false,
-        side:        THREE.DoubleSide,
-        blending:    THREE.AdditiveBlending,
-      });
+      const seed    = Math.random() * 100;
+      const flameMat = buildFlameMat(seed);
 
       // Scatter planes across the wedge arc
       const fAng = yRot + (Math.random() - 0.5) * ANGLE_STEP * 0.8;
@@ -1036,12 +1112,43 @@ function buildBoard(wedgeGeo, bullGeo) {
     });
   });
 
-  // Bull centre
-  scene.add(new THREE.Mesh(bullGeo,
-    new THREE.MeshStandardMaterial({
-      color: 0x1a1008, roughness: 0.85,
-      emissive: 0x220800, emissiveIntensity: 0.2,
-    })));
+  // Bull centre — keep material + light reference so animateBoard can drive it
+  bullMeshData.mat = new THREE.MeshStandardMaterial({
+    color: 0x1a1008, roughness: 0.85,
+    emissive: 0x220800, emissiveIntensity: 0.2,
+  });
+  const bullMesh = new THREE.Mesh(bullGeo, bullMeshData.mat);
+  scene.add(bullMesh);
+
+  // Point light for bull glow
+  const bullLight = new THREE.PointLight(0xffdd88, 0, 0.6);
+  bullLight.position.set(0, BOARD_H / 2 + 0.05, 0);
+  scene.add(bullLight);
+  bullMeshData.light = bullLight;
+
+  // Flame planes around bull centre — same system as wedges, just 3 small planes
+  const bullFlamePlanes = [];
+  for (let fi = 0; fi < 3; fi++) {
+    const fp = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.28, 0.55),
+      buildFlameMat(fi * 2.1 + 0.3)
+    );
+    const ang = (fi / 3) * Math.PI * 2;
+    const r   = 0.09;
+    fp.position.set(Math.sin(ang) * r, BOARD_H / 2 + 0.28, Math.cos(ang) * r);
+    fp.userData = {
+      baseY:    BOARD_H / 2 + 0.28,
+      phase:    fi * 2.1 + 0.3,
+      rotSpeed: 0.4 + fi * 0.15,
+    };
+    fp.material.uniforms.u_intensity.value = 0;
+    fp.material.uniforms.u_height.value    = 0;
+    fp.material.depthWrite = false;
+    fp.renderOrder = 1;
+    scene.add(fp);
+    bullFlamePlanes.push(fp);
+  }
+  bullMeshData.flamePlanes = bullFlamePlanes;
 
   // (winner effect is the CSS radial flash + torch surge — no 3D particles needed)
 }
@@ -1153,26 +1260,18 @@ function onPointerUp(e) {
 
   raycaster.setFromCamera(_mouse, camera);
   const hits = raycaster.intersectObject(hitDisc);
-  // Tap off the board disc entirely = miss for this dart
-  if (!hits.length) { registerMiss(); return; }
+  // Tap off the board — do nothing, user can orbit or use Miss button
+  if (!hits.length) return;
 
   const result = classifyHit(hits[0].point);
-  // Tap on disc but outside board scoring area = miss
-  if (!result) { registerMiss(); return; }
+  // Tap on disc but outside scoring area — also ignore
+  if (!result) return;
 
   const { number, multiplier, zone, flashCol, hitPt } = result;
 
-  // Update last-hit display
-  const valEl  = document.getElementById('last-hit-val');
-  const zoneEl = document.getElementById('last-hit-zone');
-  const prefix = multiplier === 3 ? 'T' : multiplier === 2 ? 'D' : '';
-  valEl.textContent  = prefix + (number === 25 ? 'Bull' : number);
-  valEl.style.color  = currentPlayer === 1 ? '#4af' : '#fa4';
-  const zoneLabels   = { 1: 'Single', 2: number === 25 ? 'Inner Bull' : 'Double', 3: 'Triple' };
-  zoneEl.textContent = zoneLabels[multiplier] || zone;
-
   spawnFlash(hitPt, flashCol ?? 0xffffff);
   registerHit(number, multiplier);
+  updateLastHitUI();
 }
 
 function setupTapHit() {
@@ -1184,25 +1283,193 @@ function setupTapHit() {
   renderer.domElement.addEventListener('touchend',    onPointerUp,   { passive: true });
 }
 
+// Board sequence for number carousel (same as DART_NUMBERS + Bull)
+const LH_SEQ = [...DART_NUMBERS, 25]; // 21 entries; null (Miss) is handled separately
+
+function updateLastHitUI() {
+  const entry  = historyStack[historyStack.length - 1];
+  const valEl  = document.getElementById('last-hit-val');
+  const zoneEl = document.getElementById('last-hit-zone');
+  const editEl = document.getElementById('last-hit-edit');
+  if (!entry) {
+    valEl.textContent = '—'; valEl.style.color = '#888';
+    zoneEl.textContent = '';
+    if (editEl) editEl.style.display = 'none';
+    return;
+  }
+
+  const col = entry.player === 1 ? '#4af' : '#fa4';
+  const { number, multiplier } = entry;
+  const prefix = number === 25
+    ? (multiplier === 2 ? 'I' : 'O')
+    : (multiplier === 3 ? 'T' : multiplier === 2 ? 'D' : '');
+  valEl.textContent = number === null ? '—' : number === 25 ? (multiplier === 2 ? 'IB' : 'OB') : prefix + number;
+  valEl.style.color = number === null ? '#555' : col;
+
+  const zoneMap = { 1:'Single', 2: number===25?'Inner Bull':'Double', 3:'Triple' };
+  zoneEl.textContent = number === null ? '' : (zoneMap[multiplier] || '');
+
+  if (!editEl) return;
+
+  // Always show quick-edit (Miss is editable — scroll ‹/› to change to a number)
+  editEl.style.display = 'flex';
+
+  // Sequence: null (Miss) at index 0, then board order, then Bull
+  const LH_SEQ_MISS = [null, ...LH_SEQ]; // Miss + 21 numbers = 22 entries
+  const isMissEntry = number === null;
+  const startIdx = isMissEntry ? 0
+    : number === 25 ? LH_SEQ_MISS.length - 1
+    : LH_SEQ_MISS.indexOf(number);
+  const curIdxRef = { v: startIdx < 0 ? 0 : startIdx };
+
+  const numLabel = n => n === null ? '—' : n === 25 ? 'B' : String(n);
+
+  const prevSpan = document.getElementById('last-hit-prev');
+  const curSpan  = document.getElementById('last-hit-cur');
+  const nextSpan = document.getElementById('last-hit-next');
+
+  const SEQ_LEN = LH_SEQ_MISS.length;
+  const refreshNums = () => {
+    const prev = LH_SEQ_MISS[(curIdxRef.v - 1 + SEQ_LEN) % SEQ_LEN];
+    const cur  = LH_SEQ_MISS[curIdxRef.v];
+    const next = LH_SEQ_MISS[(curIdxRef.v + 1) % SEQ_LEN];
+    prevSpan.textContent = numLabel(prev);
+    prevSpan.style.cssText = `font-size:14px;color:#444;min-width:38px;text-align:right;`;
+    const curCol = cur === null ? '#555' : col;
+    curSpan.textContent  = numLabel(cur);
+    curSpan.style.cssText = `font-size:26px;font-weight:bold;color:${curCol};min-width:50px;text-align:center;`;
+    nextSpan.textContent = numLabel(next);
+    nextSpan.style.cssText = `font-size:14px;color:#444;min-width:38px;text-align:left;`;
+  };
+  refreshNums();
+
+  const applyNumChange = () => {
+    const n = LH_SEQ_MISS[curIdxRef.v];
+    entry.number = n;
+    if (n === null) {
+      entry.multiplier = 0;
+      entry.label = 'Miss';
+    } else {
+      if (n === 25 && entry.multiplier > 2) entry.multiplier = 2;
+      if (entry.multiplier === 0) entry.multiplier = 1;
+      const pfx = n === 25 ? (entry.multiplier===2?'I':'O') : (['','S','D','T'][entry.multiplier]??'S');
+      entry.label = pfx + (n===25?'B':n);
+    }
+    refreshMults();
+    replayAll();
+  };
+
+  // Remove old listeners by cloning buttons
+  ['lh-prev','lh-next'].forEach(id => {
+    const old = document.getElementById(id);
+    const fresh = old.cloneNode(true);
+    old.parentNode.replaceChild(fresh, old);
+  });
+  document.getElementById('lh-prev').addEventListener('click', () => {
+    curIdxRef.v = (curIdxRef.v - 1 + SEQ_LEN) % SEQ_LEN;
+    refreshNums(); applyNumChange();
+  });
+  document.getElementById('lh-next').addEventListener('click', () => {
+    curIdxRef.v = (curIdxRef.v + 1) % SEQ_LEN;
+    refreshNums(); applyNumChange();
+  });
+
+  // Multiplier buttons
+  const multRow = document.getElementById('last-hit-mult-row');
+  const refreshMults = () => {
+    const isMiss = entry.number === null;
+    const isBull = entry.number === 25;
+    multRow.style.display = isMiss ? 'none' : 'flex';
+    if (isMiss) return;
+    const btns = multRow.querySelectorAll('button');
+    btns.forEach(b => {
+      const m = parseInt(b.dataset.mult);
+      const available = isBull ? m <= 2 : true;
+      const active = available && m === entry.multiplier;
+      b.disabled = !available;
+      b.style.borderColor = active ? col : '#333';
+      b.style.background  = active ? col + '33' : '#111';
+      b.style.color       = active ? col : available ? '#555' : '#222';
+      b.textContent = isBull ? (m===1?'O':m===2?'I':'T') : (['','S','D','T'][m]);
+    });
+  };
+  refreshMults();
+
+  // Re-wire mult buttons
+  const oldMultRow = document.getElementById('last-hit-mult-row');
+  const newMultRow = oldMultRow.cloneNode(true);
+  oldMultRow.parentNode.replaceChild(newMultRow, oldMultRow);
+  newMultRow.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      const m = parseInt(b.dataset.mult);
+      if (entry.number === 25 && m > 2) return;
+      entry.multiplier = m;
+      const n = entry.number;
+      const pfx = n===25?(m===2?'I':'O'):(['','S','D','T'][m]??'S');
+      entry.label = pfx + (n===25?'B':n);
+      // Re-run refreshMults on the *new* row
+      newMultRow.querySelectorAll('button').forEach(bb => {
+        const mm = parseInt(bb.dataset.mult);
+        const isBull = n === 25;
+        const available = isBull ? mm <= 2 : true;
+        const active = available && mm === m;
+        bb.disabled = !available;
+        bb.style.borderColor = active ? col : '#333';
+        bb.style.background  = active ? col+'33' : '#111';
+        bb.style.color       = active ? col : available ? '#555' : '#222';
+        bb.textContent = isBull ? (mm===1?'O':mm===2?'I':'T') : (['','S','D','T'][mm]);
+      });
+      replayAll();
+    });
+  });
+}
+
 // ─── Cricket game logic ───────────────────────────────────────────────────────
 
-// Compute flame state from marks — pure ownership, no blending.
-// Controlling player = whoever leads. Tie = no flames.
+// Compute flame/glow state.
+// Glow reflects the leading player's mark count (shows progress, even without scoring threat).
+// Fire (flameHeight > 0) only when the leading player has 3 marks and can score.
+// Closed = no flame. Both tied = show the mark level in a neutral-ish but dim glow.
 function recomputeFlame(ws) {
   if (!ws.isCricket || ws.closed) {
-    ws.flameIntensity = 0; ws.flamePlayer = 0; return;
+    ws.flameIntensity = 0; ws.flameHeight = 0; ws.flamePlayer = 0; return;
   }
-  const lead = ws.p1marks - ws.p2marks;
-  if (lead === 0) {
-    ws.flameIntensity = 0; ws.flamePlayer = 0;
-  } else if (lead > 0) {
-    ws.flamePlayer    = 1;
-    ws.flameIntensity = Math.min(1, lead / 3);
+  const maxPips = 3;
+  const p1 = ws.p1marks, p2 = ws.p2marks;
+
+  // Scoring player = whoever has reached max pips (can score on further hits)
+  const p1canScore = p1 >= maxPips && p2 < maxPips;
+  const p2canScore = p2 >= maxPips && p1 < maxPips;
+
+  if (p1canScore || p2canScore) {
+    // Full fire — the scoring player "owns" the flame
+    ws.flamePlayer    = p1canScore ? 1 : 2;
+    ws.flameIntensity = 1.0;
+    ws.flameHeight    = 1.0;
   } else {
-    ws.flamePlayer    = 2;
-    ws.flameIntensity = Math.min(1, (-lead) / 3);
+    // No scoring threat yet — glow reflects leading player's progress
+    const lead = p1 - p2;
+    if (lead === 0 && p1 === 0) {
+      // No marks at all — no glow
+      ws.flameIntensity = 0; ws.flameHeight = 0; ws.flamePlayer = 0;
+    } else {
+      // Glow only (no fire flames), colour = whoever leads (or last to mark if tied)
+      ws.flamePlayer    = lead >= 0 ? 1 : 2;
+      // Intensity rises with shared mark level (1/3, 2/3) — never 1.0 (that's fire only)
+      const sharedLevel = Math.min(p1, p2);
+      const leadBonus   = Math.abs(lead) / (maxPips * 2); // small bonus for having a lead
+      ws.flameIntensity = Math.min(0.72, sharedLevel / maxPips * 0.55 + leadBonus);
+      ws.flameHeight    = 0; // glow only — no flame planes
+    }
   }
-  ws.flameHeight = ws.flameIntensity;
+}
+
+// Compute target scaleY (1=full, 0=gone) based on shared confirmed pips.
+// Both players must reach a pip level before the block shrinks to that notch.
+function syncDropTarget(ws) {
+  if (ws.closed) { ws.targetDropY = 0; return; }
+  const shared  = Math.min(ws.p1marks, ws.p2marks);
+  ws.targetDropY = 1 - shared / 3; // 0 pips→1.0, 1 pip→0.667, 2 pips→0.333, 3→0 (closed)
 }
 
 // Register a hit on a Cricket target for the current player.
@@ -1228,11 +1495,9 @@ function scoreCricketHit(ws, multiplier) {
   }
 
   // Both at 3 → close
-  if (ws.p1marks === 3 && ws.p2marks === 3) {
-    ws.closed      = true;
-    ws.targetDropY = DROP_DEPTH;
-  }
+  if (ws.p1marks === 3 && ws.p2marks === 3) ws.closed = true;
 
+  syncDropTarget(ws);
   recomputeFlame(ws);
   return pts;
 }
@@ -1246,11 +1511,13 @@ function findCricketWedge(number) {
 function registerHit(number, multiplier, label) {
   if (gameOver || dartsLeft === 0) return;
   const player  = currentPlayer;
-  const lbl     = label || (['','S','D','T'][multiplier] ?? 'S') + (number === 25 ? 'Bull' : number);
+  const lbl     = label || (number === 25 ? (multiplier === 2 ? 'IB' : 'OB') : (['','S','D','T'][multiplier] ?? 'S') + number);
   pushHistory(lbl, number, multiplier, player);
   const ws = number === 25 ? bullState : findCricketWedge(number);
   if (!ws || ws.closed) { advanceDart(); return; }
-  scoreCricketHit(ws, multiplier);
+  const pts = scoreCricketHit(ws, multiplier);
+  // Scoring hit burst: spike flame height for ~1.5s then settle
+  if (pts > 0 && !ws.closed) ws.flameBurst = 1.0;
   advanceDart();
   checkWin();
   updateScoreUI();
@@ -1267,6 +1534,7 @@ function registerMiss() {
 function registerPass() {
   if (gameOver) return;
   while (dartsLeft > 0) registerMiss();
+  if (typeof updateLastHitUI === 'function') updateLastHitUI();
 }
 
 function advanceDart() {
@@ -1304,11 +1572,11 @@ function checkWin() {
 function resetAll() {
   wedgeStates.forEach(ws => Object.assign(ws, {
     p1marks: 0, p2marks: 0, closed: false, lockedBy: 0,
-    dropY: 0, targetDropY: 0, flameIntensity: 0, flameHeight: 0, flamePlayer: 0,
+    dropY: 1, targetDropY: 1, flameIntensity: 0, flameHeight: 0, flameBurst: 0, flamePlayer: 0,
   }));
   Object.assign(bullState, {
     p1marks: 0, p2marks: 0, closed: false, lockedBy: 0,
-    dropY: 0, targetDropY: 0, flameIntensity: 0, flameHeight: 0, flamePlayer: 0,
+    dropY: 1, targetDropY: 1, flameIntensity: 0, flameHeight: 0, flameBurst: 0, flamePlayer: 0,
   });
   currentPlayer = 1; dartsLeft = 3;
   p1Points = 0; p2Points = 0;
@@ -1316,14 +1584,11 @@ function resetAll() {
   winnerActive = false; winnerTimer = 0;
   historyStack.length = 0;
   turnNum = 1;
-  const valEl = document.getElementById('last-hit-val');
-  if (valEl) { valEl.textContent = '—'; valEl.style.color = '#888'; }
-  const zoneEl = document.getElementById('last-hit-zone');
-  if (zoneEl) zoneEl.textContent = '';
   updateScoreUI();
   updateTurnUI();
   renderCricketBoard();
   renderHistory();
+  if (typeof updateLastHitUI === 'function') updateLastHitUI();
 }
 
 function updateScoreUI() {
@@ -1342,7 +1607,7 @@ function updateTurnUI() {
     dartsEl.textContent  = '';
   } else {
     const col = currentPlayer === 1 ? '#4af' : '#fa4';
-    statusEl.innerHTML = `<span style="color:${col};font-weight:bold;">Player ${currentPlayer}</span>'s turn`;
+    statusEl.innerHTML = `<span style="color:${col};font-weight:bold;">Player ${currentPlayer}</span>`;
     dartsEl.textContent = '🎯'.repeat(dartsLeft);
   }
 }
@@ -1386,7 +1651,9 @@ function applyDemoState(state) {
     ws.p1marks = p1m; ws.p2marks = p2m;
     if (p1m === 3 && ws.lockedBy === 0) ws.lockedBy = 1;
     if (p2m === 3 && ws.lockedBy === 0) ws.lockedBy = 2;
-    if (p1m === 3 && p2m === 3) { ws.closed = true; ws.targetDropY = DROP_DEPTH; ws.dropY = DROP_DEPTH; }
+    if (p1m === 3 && p2m === 3) ws.closed = true;
+    syncDropTarget(ws);
+    ws.dropY = ws.targetDropY; // snap immediately in demo mode
     recomputeFlame(ws);
   };
 
@@ -1453,14 +1720,20 @@ function animateBoard(t) {
   wedgeStates.forEach((ws, i) => {
     const { mesh, mat, light, flamePlanes, triRing, dblRing, baseColor } = wedgeMeshData[i];
 
-    // Smooth drop
+    // Smooth height scale: dropY = scaleY (1=full height, 0=gone).
+    // Block geometry is centred at y=0; bottom at -BOARD_H/2, top at +BOARD_H/2.
+    // To shrink from the top while keeping the bottom fixed at -BOARD_H/2:
+    //   scale.y = s  →  mesh.position.y = (s-1)*BOARD_H/2  (shifts centre down)
+    //   ring world Y = (s - 0.5)*BOARD_H + 0.018
     ws.dropY += (ws.targetDropY - ws.dropY) * 0.055;
-    mesh.position.y = ws.dropY;
+    const s = Math.max(0.001, ws.dropY);
+    mesh.scale.y    = s;
+    mesh.position.y = (s - 1) * BOARD_H / 2;
 
-    // Rings follow the drop
-    const ringY = ws.dropY + RING_Y_BASE;
-    triRing.position.y = ringY;
-    dblRing.position.y = ringY;
+    // Rings follow the shrinking top face
+    const ringWorldY = (s - 0.5) * BOARD_H + 0.018;
+    triRing.position.y = ringWorldY;
+    dblRing.position.y = ringWorldY;
 
     if (ws.closed) {
       mat.color.lerp(CLOSED_C, 0.05);
@@ -1475,29 +1748,32 @@ function animateBoard(t) {
       return;
     }
 
-    // Stone emissive glow — only on cricket targets with flame
+    // Stone emissive glow — reflects progress even before fire kicks in
     mat.color.lerp(baseColor, 0.04);
     const flameCol = ws.flamePlayer === 2 ? P2_COL.clone() : P1_COL.clone();
-    if (ws.isCricket && ws.flameIntensity > 0) {
+    const glowI = Math.max(ws.flameIntensity, ws.flameBurst * 0.7);
+    if (ws.isCricket && glowI > 0) {
       mat.emissive          = flameCol;
-      mat.emissiveIntensity = ws.flameIntensity * 0.4 * (0.85 + 0.15 * Math.sin(t * 3 + i));
+      mat.emissiveIntensity = glowI * 0.45 * (0.85 + 0.15 * Math.sin(t * 3 + i));
     } else {
       mat.emissiveIntensity = 0;
     }
 
-    // Point light
+    // Point light — burst adds a bright flash
     light.color = flameCol;
-    const targetLightI = ws.isCricket ? ws.flameIntensity * 3.2 : 0;
-    light.intensity += (targetLightI - light.intensity) * 0.07;
+    const targetLightI = ws.isCricket ? Math.max(ws.flameIntensity, ws.flameBurst) * 4.5 : 0;
+    light.intensity += (targetLightI - light.intensity) * 0.1;
 
     // Ring glow — brightens with flame activity on cricket wedges only
-    const ringGlow = ws.isCricket ? 0.08 + ws.flameIntensity * 0.55 : 0.08;
+    const ringGlow = ws.isCricket ? 0.08 + Math.max(ws.flameIntensity, ws.flameBurst) * 0.72 : 0.08;
     triRing.material.emissiveIntensity = ringGlow;
     dblRing.material.emissiveIntensity = ringGlow;
 
     // Flame planes — only on cricket targets
-    const targetH = ws.isCricket ? 0.15 + ws.flameHeight * 0.85 : 0;
-    const targetI = ws.isCricket ? ws.flameIntensity : 0;
+    ws.flameBurst *= 0.978; // decay ~1.5s to near zero at 60fps
+    const burstH  = ws.flameBurst * 1.4; // burst adds extra height on top of base
+    const targetH = ws.isCricket ? (ws.flameHeight > 0 ? 0.15 + ws.flameHeight * 0.85 + burstH : 0) : 0;
+    const targetI = ws.isCricket ? Math.max(ws.flameIntensity, ws.flameBurst * 0.9) : 0;
     flamePlanes.forEach((fp, fi) => {
       const ud = fp.userData;
       const u  = fp.material.uniforms;
@@ -1507,11 +1783,56 @@ function animateBoard(t) {
       // Pure colour — no mix, always the controlling player's colour
       u.u_mix.value        = ws.flamePlayer === 2 ? 1.0 : 0.0;
 
-      const flutter = 1.0 + 0.08 * Math.sin(t * (1.5 + fi * 0.4) + ud.phase);
-      fp.position.y = ud.baseY + ws.dropY + ws.flameHeight * 0.18 * flutter;
+      const flutter   = 1.0 + 0.08 * Math.sin(t * (1.5 + fi * 0.4) + ud.phase);
+      const topFaceY  = (s - 0.5) * BOARD_H + 0.018;
+      fp.position.y = topFaceY + PLANE_H / 2 + 0.05 + ws.flameHeight * 0.18 * flutter;
       fp.rotation.y = ud.phase + t * ud.rotSpeed * 0.4;
     });
   });
+
+  // ── Bull animation (same logic, driven by bullState) ──
+  if (bullMeshData.mat) {
+    const bs = bullState;
+    bs.flameBurst *= 0.978;
+
+    if (bs.closed) {
+      bullMeshData.mat.emissiveIntensity *= 0.94;
+      if (bullMeshData.light) bullMeshData.light.intensity *= 0.92;
+      bullMeshData.flamePlanes.forEach(fp => {
+        fp.material.uniforms.u_intensity.value *= 0.88;
+      });
+    } else {
+      const bullCol = bs.flamePlayer === 2 ? P2_COL.clone() : P1_COL.clone();
+      const glowI   = Math.max(bs.flameIntensity, bs.flameBurst * 0.7);
+      if (glowI > 0) {
+        bullMeshData.mat.emissive          = bullCol;
+        bullMeshData.mat.emissiveIntensity = glowI * 0.5 * (0.85 + 0.15 * Math.sin(t * 3.2));
+      } else {
+        bullMeshData.mat.emissiveIntensity = 0.2; // base glow
+      }
+
+      if (bullMeshData.light) {
+        bullMeshData.light.color = bullCol;
+        const tgtL = Math.max(bs.flameIntensity, bs.flameBurst) * 4.5;
+        bullMeshData.light.intensity += (tgtL - bullMeshData.light.intensity) * 0.1;
+      }
+
+      const burstH   = bs.flameBurst * 1.4;
+      const tgtH     = bs.flameHeight > 0 ? 0.15 + bs.flameHeight * 0.85 + burstH : 0;
+      const tgtI     = Math.max(bs.flameIntensity, bs.flameBurst * 0.9);
+      bullMeshData.flamePlanes.forEach((fp, fi) => {
+        const ud = fp.userData;
+        const u  = fp.material.uniforms;
+        u.u_time.value       = t + ud.phase;
+        u.u_intensity.value += (tgtI - u.u_intensity.value) * 0.1;
+        u.u_height.value    += (tgtH - u.u_height.value) * 0.08;
+        u.u_mix.value        = bs.flamePlayer === 2 ? 1.0 : 0.0;
+        const flutter = 1.0 + 0.08 * Math.sin(t * 1.7 + ud.phase);
+        fp.position.y = ud.baseY + bs.flameHeight * 0.18 * flutter;
+        fp.rotation.y = ud.phase + t * ud.rotSpeed * 0.4;
+      });
+    }
+  }
 }
 
 function animateTorches(t) {
@@ -1636,12 +1957,10 @@ function updateWedgeLabels() {
   const h = renderer.domElement.clientHeight;
 
   spans.forEach((span, i) => {
-    const dropY  = wedgeStates[i].dropY;
-    // yRot = Math.PI - i*ANGLE_STEP; wedge tip points in the -yRot direction.
-    // The label sits at the outer rim in the same direction as the wedge centre.
-    // sin(yRot),cos(yRot) with yRot=Math.PI puts wedge-0 (20) at -Z = 12 o'clock. ✓
+    const scaleY = wedgeStates[i].dropY; // dropY now = scaleY (1=full, 0=gone)
     const angle  = Math.PI - i * ANGLE_STEP;
-    const topY   = BOARD_H / 2 + dropY + 0.02;
+    // Top face world Y = (scaleY - 0.5)*BOARD_H + small offset
+    const topY   = (scaleY - 0.5) * BOARD_H + 0.02;
 
     _vec3.set(Math.sin(angle) * labelR, topY, Math.cos(angle) * labelR);
     _vec3.project(camera);
@@ -1713,7 +2032,12 @@ try {
   buildWedgeLabels();
 
   document.getElementById('home-btn').addEventListener('click', goHome);
-  document.getElementById('miss-btn').addEventListener('click', registerMiss);
+  document.getElementById('miss-btn').addEventListener('click', () => { registerMiss(); updateLastHitUI(); });
+  // Tapping the turn bar itself (not a child button) also registers a miss
+  document.getElementById('turn-bar').addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    registerMiss(); updateLastHitUI();
+  });
   document.getElementById('pass-btn').addEventListener('click', registerPass);
   document.getElementById('undo-btn').addEventListener('click', undoLast);
   document.getElementById('newgame-btn').addEventListener('click', resetAll);
