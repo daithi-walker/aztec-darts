@@ -1,0 +1,8 @@
+{
+  "name": "aztec-darts",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/game.test.js",
+    "serve": "python3 -m http.server 9977 --bind 0.0.0.0"
+  }
+}
