@@ -991,22 +991,32 @@ function classifyHit(pt) {
 }
 
 // Pointer tracking — only fire on tap (small movement, quick release)
-let _pointerDown = null;
+let _pointerDown  = null;
+let _lastTapTime  = 0;
+const DBL_TAP_MS  = 300; // two taps within this window = double-tap → go home
 
 function onPointerDown(e) {
-  // Ignore taps that start on UI elements
   if (e.target !== renderer.domElement) return;
   const src = e.touches ? e.touches[0] : e;
-  _pointerDown = { x: src.clientX, y: src.clientY };
+  _pointerDown = { x: src.clientX, y: src.clientY, t: Date.now() };
 }
 
 function onPointerUp(e) {
   if (!_pointerDown) return;
   const src = e.changedTouches ? e.changedTouches[0] : e;
-  const dx = src.clientX - _pointerDown.x;
-  const dy = src.clientY - _pointerDown.y;
+  const dx  = src.clientX - _pointerDown.x;
+  const dy  = src.clientY - _pointerDown.y;
+  const now = Date.now();
   _pointerDown = null;
-  if (Math.sqrt(dx*dx + dy*dy) > 10) return; // was a drag, not a tap
+  if (Math.sqrt(dx*dx + dy*dy) > 10) return; // drag — ignore
+
+  // Double-tap: snap camera home, do NOT register a miss
+  if (now - _lastTapTime < DBL_TAP_MS) {
+    _lastTapTime = 0;
+    goHome();
+    return;
+  }
+  _lastTapTime = now;
 
   const rect = renderer.domElement.getBoundingClientRect();
   _mouse.set(
@@ -1218,6 +1228,15 @@ function renderCricketBoard() {
     const n  = targets[ri];
     const ws = n === 25 ? bullState : findCricketWedge(n);
     if (!ws) return;
+
+    // Closed row: dim + strikethrough the whole row
+    if (ws.closed) {
+      row.style.opacity = '0.35';
+      row.style.textDecoration = 'line-through';
+    } else {
+      row.style.opacity = '1';
+      row.style.textDecoration = 'none';
+    }
 
     // P1 marks (left side)
     const p1cells = row.querySelectorAll('.cr-marks.p1 .cr-mark');
@@ -1510,6 +1529,11 @@ function updateWedgeLabels() {
     span.style.display = '';
     span.style.left = (( _vec3.x * 0.5 + 0.5) * w) + 'px';
     span.style.top  = ((-_vec3.y * 0.5 + 0.5) * h) + 'px';
+    // Dim label when wedge is closed
+    const ws = wedgeStates[i];
+    span.style.opacity         = ws.closed ? '0.2' : '1';
+    span.style.textDecoration  = ws.closed ? 'line-through' : 'none';
+    span.style.color           = ws.closed ? '#888' : '#f0e0a0';
   });
 }
 
@@ -1572,7 +1596,7 @@ try {
   document.getElementById('pass-btn').addEventListener('click', registerPass);
   document.getElementById('undo-btn').addEventListener('click', undoLast);
   document.getElementById('newgame-btn').addEventListener('click', resetAll);
-  renderer.domElement.addEventListener('dblclick', goHome);
+  // double-tap is handled in onPointerUp to avoid also registering a miss
 
 
   // Demo toggle checkbox
