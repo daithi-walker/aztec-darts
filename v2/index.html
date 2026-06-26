@@ -286,9 +286,9 @@ Then open: http://localhost:8181</pre>
         <div><div class="val p2v" id="p2pts">0</div><div class="lbl">pts</div></div>
       </div>
       <div class="cricket-row header">
-        <span style="color:#4af">P1</span>
+        <span id="p1-name-lbl" style="color:#4af;cursor:pointer;" title="Tap to rename">P1</span>
         <span></span>
-        <span style="color:#fa4">P2</span>
+        <span id="p2-name-lbl" style="color:#fa4;cursor:pointer;" title="Tap to rename">P2</span>
       </div>
       <div class="cricket-board" id="cricket-board"></div>
     </div>
@@ -622,6 +622,10 @@ const wedgeStates = DART_NUMBERS.map((n, i) => makeWedgeState(n, i));
 const bullState = makeWedgeState(25, BULL_IDX);
 
 // Turn / game state
+let p1Name = 'Player 1';
+let p2Name = 'Player 2';
+const pName = p => p === 1 ? p1Name : p2Name;
+
 let currentPlayer  = 1;   // 1 or 2
 let dartsLeft      = 3;   // per turn
 let p1Points       = 0;
@@ -1602,12 +1606,12 @@ function updateTurnUI() {
   const dartsEl  = document.getElementById('darts-left');
   const statusEl = document.getElementById('game-status');
   if (gameOver) {
-    statusEl.textContent = `Player ${winnerPlayer} Wins!`;
+    statusEl.textContent = `${pName(winnerPlayer)} Wins!`;
     statusEl.style.color = winnerPlayer === 1 ? '#4af' : '#fa4';
     dartsEl.textContent  = '';
   } else {
     const col = currentPlayer === 1 ? '#4af' : '#fa4';
-    statusEl.innerHTML = `<span style="color:${col};font-weight:bold;">Player ${currentPlayer}</span>`;
+    statusEl.innerHTML = `<span style="color:${col};font-weight:bold;">${pName(currentPlayer)}</span>`;
     dartsEl.textContent = '🎯'.repeat(dartsLeft);
   }
 }
@@ -2059,6 +2063,38 @@ try {
   applyDemoState('start');
 
   setupTapHit();
+
+  // Player rename — tap P1/P2 in scoreboard header
+  function wireRenameHandler(id, p) {
+    const span = document.getElementById(id);
+    if (!span) return;
+    span.textContent = (p === 1 ? p1Name : p2Name).slice(0, 8);
+    span.addEventListener('click', function() {
+      const col = p === 1 ? '#4af' : '#fa4';
+      const inp = document.createElement('input');
+      inp.value = p === 1 ? p1Name : p2Name;
+      inp.style.cssText = `width:64px;background:#111;border:none;border-bottom:1px solid ${col};color:${col};font:inherit;font-weight:bold;text-align:center;outline:none;`;
+      span.replaceWith(inp);
+      inp.focus(); inp.select();
+      const commit = () => {
+        const name = inp.value.trim() || (p === 1 ? 'Player 1' : 'Player 2');
+        if (p === 1) p1Name = name; else p2Name = name;
+        const newSpan = document.createElement('span');
+        newSpan.id = id;
+        newSpan.style.cssText = `color:${col};cursor:pointer;`;
+        newSpan.title = 'Tap to rename';
+        newSpan.textContent = name.slice(0, 8);
+        inp.replaceWith(newSpan);
+        wireRenameHandler(id, p);
+        updateTurnUI();
+        renderHistory();
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { inp.value = p===1?p1Name:p2Name; inp.blur(); } });
+    });
+  }
+  wireRenameHandler('p1-name-lbl', 1);
+  wireRenameHandler('p2-name-lbl', 2);
 
   const dtClock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
