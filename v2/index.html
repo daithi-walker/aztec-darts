@@ -666,40 +666,83 @@ function undoLast() {
 
 function makeDartCell(entry, col) {
   const dc = document.createElement('div');
-  dc.style.cssText = `text-align:center;color:${col};font-size:11px;font-weight:bold;cursor:pointer;border-bottom:1px dashed transparent;`;
-  dc.title = 'Click to edit';
+  dc.style.cssText = `text-align:center;color:${col};font-size:11px;font-weight:bold;cursor:pointer;position:relative;`;
   dc.textContent = entry ? entry.label : '—';
 
-  if (!entry) return dc; // empty slot, not editable
-
-  dc.addEventListener('mouseenter', () => { dc.style.borderBottomColor = col; });
-  dc.addEventListener('mouseleave', () => { if (!dc.querySelector('input')) dc.style.borderBottomColor = 'transparent'; });
+  if (!entry) return dc;
 
   dc.addEventListener('click', () => {
-    if (dc.querySelector('input')) return;
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.value = entry.label;
-    inp.style.cssText = `width:44px;background:#111;border:none;border-bottom:2px solid ${col};color:${col};font-size:11px;font-weight:bold;text-align:center;outline:none;`;
-    dc.textContent = '';
-    dc.appendChild(inp);
-    inp.focus(); inp.select();
+    if (dc.querySelector('.dart-picker')) return; // already open
 
-    const commit = () => {
-      const raw = inp.value.trim();
-      const { number, multiplier } = parseLabel(raw);
-      const newLabel = raw || '—';
-      entry.label      = newLabel;
-      entry.number     = number;
-      entry.multiplier = multiplier;
-      replayAll(); // recalculates everything
-    };
-    inp.addEventListener('blur', commit);
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  { commit(); inp.blur(); }
-      if (e.key === 'Escape') { dc.textContent = entry.label; }
+    // Build inline picker
+    const picker = document.createElement('div');
+    picker.className = 'dart-picker';
+    picker.style.cssText = `
+      position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
+      background:#1a1a1a; border:1px solid #444; border-radius:6px;
+      padding:6px; z-index:50; display:flex; flex-direction:column; gap:4px;
+      white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.6);
+    `;
+
+    const isBull = entry.number === 25;
+    const isMiss = entry.number === null;
+
+    // Number display (non-editable label)
+    const numLbl = document.createElement('div');
+    numLbl.style.cssText = `color:#888;font-size:9px;text-align:center;margin-bottom:2px;`;
+    numLbl.textContent = isMiss ? 'Miss' : isBull ? 'Bull' : `#${entry.number}`;
+    picker.appendChild(numLbl);
+
+    // Multiplier buttons
+    const btns = document.createElement('div');
+    btns.style.cssText = `display:flex;gap:3px;`;
+
+    const options = isBull
+      ? [['O', 1, 'Outer'], ['I', 2, 'Inner']]
+      : [['S', 1, 'Single'], ['D', 2, 'Double'], ['T', 3, 'Triple'], ['✕', 0, 'Miss']];
+
+    options.forEach(([label, mult, title]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = title;
+      const isActive = isMiss ? mult === 0 : mult === entry.multiplier;
+      b.style.cssText = `
+        padding:3px 6px; border-radius:3px; cursor:pointer; font-size:11px; font-weight:bold;
+        border:1px solid ${isActive ? col : '#333'};
+        background:${isActive ? col + '33' : '#111'};
+        color:${isActive ? col : '#666'};
+      `;
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        if (mult === 0) {
+          // Miss
+          entry.label      = 'Miss';
+          entry.number     = null;
+          entry.multiplier = 0;
+        } else {
+          const prefix = isBull
+            ? (mult === 2 ? 'I' : 'O')
+            : (['', 'S', 'D', 'T'][mult]);
+          entry.multiplier = mult;
+          entry.label      = prefix + (isBull ? 'Bull' : entry.number);
+        }
+        replayAll();
+      });
+      btns.appendChild(b);
     });
+    picker.appendChild(btns);
+    dc.appendChild(picker);
+
+    // Close when clicking outside
+    const close = ev => {
+      if (!dc.contains(ev.target)) {
+        picker.remove();
+        document.removeEventListener('click', close);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close), 0);
   });
+
   return dc;
 }
 
