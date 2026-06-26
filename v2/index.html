@@ -620,9 +620,11 @@ function parseLabel(lbl) {
   return { number: parseInt(m[2]), multiplier: mult };
 }
 
+// Per-turn running totals — populated during replayAll, read by renderHistory
+const turnTotals = {}; // { [turnNum]: { p1, p2 } }
+
 // Replay all throws from scratch to rebuild full game state
 function replayAll() {
-  // Reset without clearing historyStack
   wedgeStates.forEach(ws => Object.assign(ws, {
     p1marks: 0, p2marks: 0, closed: false, lockedBy: 0,
     dropY: 0, targetDropY: 0, flameIntensity: 0, flameHeight: 0, flamePlayer: 0,
@@ -634,23 +636,27 @@ function replayAll() {
   currentPlayer = 1; dartsLeft = 3; turnNum = 1;
   p1Points = 0; p2Points = 0;
   gameOver = false; winnerPlayer = 0; winnerActive = false; winnerTimer = 0;
+  Object.keys(turnTotals).forEach(k => delete turnTotals[k]);
 
   for (const entry of historyStack) {
     const { number, multiplier, player } = entry;
-    // Ensure player ordering matches
     if (currentPlayer !== player) { currentPlayer = player; }
     if (number !== null && multiplier > 0) {
       const ws = number === 25 ? bullState : findCricketWedge(number);
       if (ws && !ws.closed) scoreCricketHit(ws, multiplier);
     }
-    // Advance dart/turn
     dartsLeft--;
     if (dartsLeft === 0) {
+      // Snapshot running totals at end of this turn
+      turnTotals[turnNum] = { p1: p1Points, p2: p2Points };
       currentPlayer = currentPlayer === 1 ? 2 : 1;
       dartsLeft = 3;
       turnNum++;
     }
   }
+  // Snapshot the in-progress turn too
+  turnTotals[turnNum] = { p1: p1Points, p2: p2Points };
+
   checkWin();
   updateScoreUI();
   updateTurnUI();
@@ -832,10 +838,11 @@ function renderHistory() {
     turns[e.turn].darts[e.dart - 1] = e;
   });
 
-  // Header
+  // Header — extra column for running total
+  const COL = '20px 16px 1fr 1fr 1fr 36px';
   const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:grid;grid-template-columns:22px 18px 1fr 1fr 1fr;gap:3px;padding:2px 0;border-bottom:1px solid #444;color:#666;font-size:10px;';
-  ['T#','P','D1','D2','D3'].forEach(t => {
+  hdr.style.cssText = `display:grid;grid-template-columns:${COL};gap:3px;padding:2px 0;border-bottom:1px solid #444;color:#666;font-size:10px;`;
+  ['T#','P','D1','D2','D3','∑'].forEach(t => {
     const c = document.createElement('div'); c.textContent = t; c.style.textAlign = 'center';
     hdr.appendChild(c);
   });
@@ -847,7 +854,7 @@ function renderHistory() {
     const { player, darts } = turns[t];
     const col = player === 1 ? '#4af' : '#fa4';
     const row = document.createElement('div');
-    row.style.cssText = `display:grid;grid-template-columns:22px 18px 1fr 1fr 1fr;gap:3px;padding:3px 0;border-bottom:1px solid #1a1a1a;align-items:center;`;
+    row.style.cssText = `display:grid;grid-template-columns:${COL};gap:3px;padding:3px 0;border-bottom:1px solid #1a1a1a;align-items:center;`;
 
     const tCell = document.createElement('div');
     tCell.style.cssText = `text-align:center;color:#444;font-size:10px;`;
@@ -862,6 +869,14 @@ function renderHistory() {
     row.appendChild(tCell);
     row.appendChild(pCell);
     for (let d = 0; d < 3; d++) row.appendChild(makeDartCell(darts[d], col));
+
+    // Running total for this player at end of this turn
+    const totCell = document.createElement('div');
+    totCell.style.cssText = `text-align:right;color:${col};font-size:10px;font-weight:bold;padding-right:2px;`;
+    const tot = turnTotals[t];
+    if (tot) totCell.textContent = player === 1 ? tot.p1 : tot.p2;
+    row.appendChild(totCell);
+
     el.appendChild(row);
   });
 
@@ -1341,14 +1356,8 @@ function renderCricketBoard() {
     const ws = n === 25 ? bullState : findCricketWedge(n);
     if (!ws) return;
 
-    // Closed row: dim + strikethrough the whole row
-    if (ws.closed) {
-      row.style.opacity = '0.35';
-      row.style.textDecoration = 'line-through';
-    } else {
-      row.style.opacity = '1';
-      row.style.textDecoration = 'none';
-    }
+    // Hide closed rows entirely
+    row.style.display = ws.closed ? 'none' : '';
 
     // P1 marks (left side)
     const p1cells = row.querySelectorAll('.cr-marks.p1 .cr-mark');
