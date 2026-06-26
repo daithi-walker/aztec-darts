@@ -664,87 +664,156 @@ function undoLast() {
   replayAll();
 }
 
+// Global tracker so only one picker is open at a time
+let _activePicker = null;
+
+function closePicker() {
+  if (_activePicker) { _activePicker.remove(); _activePicker = null; }
+}
+
 function makeDartCell(entry, col) {
   const dc = document.createElement('div');
-  dc.style.cssText = `text-align:center;color:${col};font-size:11px;font-weight:bold;cursor:pointer;position:relative;`;
+  dc.style.cssText = `text-align:center;color:${col};font-size:11px;font-weight:bold;cursor:pointer;`;
   dc.textContent = entry ? entry.label : '—';
 
   if (!entry) return dc;
 
-  dc.addEventListener('click', () => {
-    if (dc.querySelector('.dart-picker')) return; // already open
+  dc.addEventListener('click', e => {
+    e.stopPropagation();
+    if (_activePicker) { closePicker(); return; }
 
-    // Build inline picker
+    // ── Build picker, appended to body (avoids overflow clip) ──
     const picker = document.createElement('div');
-    picker.className = 'dart-picker';
+    _activePicker = picker;
     picker.style.cssText = `
-      position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
-      background:#1a1a1a; border:1px solid #444; border-radius:6px;
-      padding:6px; z-index:50; display:flex; flex-direction:column; gap:4px;
-      white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.6);
+      position:fixed; z-index:200;
+      background:#1e1e1e; border:1px solid #555; border-radius:8px;
+      padding:8px; display:flex; flex-direction:column; gap:6px;
+      box-shadow:0 6px 20px rgba(0,0,0,0.8); min-width:160px;
     `;
 
-    const isBull = entry.number === 25;
-    const isMiss = entry.number === null;
+    // Position: above the cell, centred, but clamped to viewport
+    const rect = dc.getBoundingClientRect();
+    document.body.appendChild(picker);
+    const ph = picker.offsetHeight || 120;
+    let top  = rect.top - ph - 6;
+    let left = rect.left + rect.width / 2 - picker.offsetWidth / 2;
+    if (top < 8) top = rect.bottom + 6;  // flip below if no room
+    left = Math.max(8, Math.min(left, window.innerWidth - picker.offsetWidth - 8));
+    picker.style.top  = top  + 'px';
+    picker.style.left = left + 'px';
 
-    // Number display (non-editable label)
-    const numLbl = document.createElement('div');
-    numLbl.style.cssText = `color:#888;font-size:9px;text-align:center;margin-bottom:2px;`;
-    numLbl.textContent = isMiss ? 'Miss' : isBull ? 'Bull' : `#${entry.number}`;
-    picker.appendChild(numLbl);
+    // ── Number row ──
+    const numRow = document.createElement('div');
+    numRow.style.cssText = `display:flex;align-items:center;gap:6px;`;
 
-    // Multiplier buttons
-    const btns = document.createElement('div');
-    btns.style.cssText = `display:flex;gap:3px;`;
+    const numLbl = document.createElement('span');
+    numLbl.style.cssText = `color:#888;font-size:10px;flex-shrink:0;`;
+    numLbl.textContent = 'Number:';
 
-    const options = isBull
+    const numInp = document.createElement('input');
+    numInp.type = 'text';
+    numInp.value = entry.number === null ? 'Miss' : entry.number === 25 ? 'Bull' : String(entry.number);
+    numInp.placeholder = '1–20 / Bull / Miss';
+    numInp.style.cssText = `
+      flex:1;background:#111;border:none;border-bottom:1px solid #555;
+      color:${col};font-size:11px;font-weight:bold;text-align:center;outline:none;padding:2px;
+    `;
+    numRow.appendChild(numLbl);
+    numRow.appendChild(numInp);
+    picker.appendChild(numRow);
+
+    // ── Multiplier row ──
+    const multRow = document.createElement('div');
+    multRow.style.cssText = `display:flex;gap:4px;`;
+
+    const rebuildLabel = () => {
+      const n = entry.number;
+      if (n === null) { entry.label = 'Miss'; return; }
+      const prefix = n === 25
+        ? (entry.multiplier === 2 ? 'I' : 'O')
+        : (['', 'S', 'D', 'T'][entry.multiplier] ?? 'S');
+      entry.label = prefix + (n === 25 ? 'Bull' : n);
+    };
+
+    const multOptions = entry.number === 25
       ? [['O', 1, 'Outer'], ['I', 2, 'Inner']]
-      : [['S', 1, 'Single'], ['D', 2, 'Double'], ['T', 3, 'Triple'], ['✕', 0, 'Miss']];
+      : [['S', 1], ['D', 2], ['T', 3], ['✕', 0]];
 
-    options.forEach(([label, mult, title]) => {
+    const multBtns = {};
+    const refreshMultBtns = () => {
+      const isMiss = entry.number === null;
+      multOptions.forEach(([lbl, mult]) => {
+        const b = multBtns[mult];
+        if (!b) return;
+        const active = isMiss ? mult === 0 : mult === entry.multiplier;
+        b.style.borderColor = active ? col : '#333';
+        b.style.background  = active ? col + '33' : '#111';
+        b.style.color       = active ? col : '#555';
+        b.disabled          = isMiss && mult !== 0;
+      });
+    };
+
+    multOptions.forEach(([lbl, mult]) => {
       const b = document.createElement('button');
-      b.textContent = label;
-      b.title = title;
-      const isActive = isMiss ? mult === 0 : mult === entry.multiplier;
+      b.textContent = lbl;
+      const active = entry.number === null ? mult === 0 : mult === entry.multiplier;
       b.style.cssText = `
-        padding:3px 6px; border-radius:3px; cursor:pointer; font-size:11px; font-weight:bold;
-        border:1px solid ${isActive ? col : '#333'};
-        background:${isActive ? col + '33' : '#111'};
-        color:${isActive ? col : '#666'};
+        flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;
+        border:1px solid ${active ? col : '#333'};
+        background:${active ? col + '33' : '#111'};
+        color:${active ? col : '#555'};
       `;
-      b.addEventListener('click', e => {
-        e.stopPropagation();
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
         if (mult === 0) {
-          // Miss
-          entry.label      = 'Miss';
-          entry.number     = null;
-          entry.multiplier = 0;
+          entry.number = null; entry.multiplier = 0;
         } else {
-          const prefix = isBull
-            ? (mult === 2 ? 'I' : 'O')
-            : (['', 'S', 'D', 'T'][mult]);
+          if (entry.number === null) return; // can't set multiplier on a miss
           entry.multiplier = mult;
-          entry.label      = prefix + (isBull ? 'Bull' : entry.number);
         }
+        rebuildLabel();
+        refreshMultBtns();
         replayAll();
       });
-      btns.appendChild(b);
+      multBtns[mult] = b;
+      multRow.appendChild(b);
     });
-    picker.appendChild(btns);
-    dc.appendChild(picker);
+    picker.appendChild(multRow);
 
-    // Close when clicking outside
-    const close = ev => {
-      if (!dc.contains(ev.target)) {
-        picker.remove();
-        document.removeEventListener('click', close);
+    // Number input commit
+    const commitNum = () => {
+      const raw = numInp.value.trim().toLowerCase();
+      if (raw === 'miss' || raw === '') {
+        entry.number = null; entry.multiplier = 0;
+      } else if (raw === 'bull' || raw === 'b' || raw === '25') {
+        entry.number = 25;
+        if (entry.multiplier === 0) entry.multiplier = 1;
+        if (entry.multiplier > 2)  entry.multiplier = 2;
+      } else {
+        const n = parseInt(raw);
+        if (n >= 1 && n <= 20) {
+          entry.number = n;
+          if (entry.multiplier === 0) entry.multiplier = 1;
+        }
       }
+      rebuildLabel();
+      refreshMultBtns();
+      replayAll();
     };
-    setTimeout(() => document.addEventListener('click', close), 0);
+    numInp.addEventListener('blur', commitNum);
+    numInp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { commitNum(); closePicker(); } });
+
+    setTimeout(() => numInp.focus(), 0);
   });
 
   return dc;
 }
+
+// Close picker on any outside click
+document.addEventListener('click', e => {
+  if (_activePicker && !_activePicker.contains(e.target)) closePicker();
+});
 
 function renderHistory() {
   const el = document.getElementById('hit-history');
