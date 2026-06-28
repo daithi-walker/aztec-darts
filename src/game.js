@@ -220,6 +220,9 @@ export function createGame() {
       if (dartsLeft === 0) endTurn();
     }
     turnTotals[turnNum] = { p1: p1Points, p2: p2Points };
+    // Snap dropY to targetDropY so stones don't animate from full-height on replay
+    wedgeStates.forEach(ws => { ws.dropY = ws.targetDropY; });
+    bullState.dropY = bullState.targetDropY;
     checkWin();
     emit('scoreUI'); emit('turnUI'); emit('cricketBoard'); emit('history'); emit('lastHitUI');
   }

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aztec Darts Animation</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%231a1008'/><circle cx='32' cy='32' r='22' fill='none' stroke='%23884422' stroke-width='3'/><circle cx='32' cy='32' r='13' fill='none' stroke='%23aa6633' stroke-width='3'/><circle cx='32' cy='32' r='5' fill='%23ff4400'/><line x1='8' y1='8' x2='29' y2='29' stroke='%2388aaff' stroke-width='3' stroke-linecap='round'/><polygon points='4,4 12,6 6,12' fill='%2388aaff'/></svg>">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #1a1008; font-family: monospace; color: #ccc; overflow: hidden; }
@@ -300,6 +301,10 @@ Then open: http://localhost:9977</pre>
       <input type="checkbox" id="demo-toggle" style="cursor:pointer;vertical-align:middle;margin-right:6px;">
       Demo Scenes
     </label>
+    <label style="cursor:pointer;color:#888;font-size:12px;user-select:none;margin-left:16px;">
+      <input type="checkbox" id="debug-toggle" style="cursor:pointer;vertical-align:middle;margin-right:6px;">
+      Debug
+    </label>
   </div>
   <div id="demo-panel" class="panel" style="
     display:none;position:absolute;bottom:70px;left:50%;transform:translateX(-50%);
@@ -430,8 +435,6 @@ float vnoise(vec2 p) {
 }
 float fbm(vec2 p) {
   float v = 0.0; float a = 0.5;
-  v += a * vnoise(p); p *= 2.1; a *= 0.5;
-  v += a * vnoise(p); p *= 2.1; a *= 0.5;
   v += a * vnoise(p); p *= 2.1; a *= 0.5;
   v += a * vnoise(p);
   return v;
@@ -938,11 +941,11 @@ function buildFlameMat(seed) {
 }
 
 // Shared holder for bull mesh animation data (populated in buildBoard)
-const bullMeshData = { mat: null, light: null, flamePlanes: [] };
+const bullMeshData = { mat: null, light: null, flamePlanes: [], mesh: null };
 
 const PLANE_W        = 0.18;
 const PLANE_H        = 0.58;
-const PLANES_PER_WEDGE = 7;
+const PLANES_PER_WEDGE = 4;
 
 function buildBoard(wedgeGeo, bullGeo) {
 
@@ -963,6 +966,7 @@ function buildBoard(wedgeGeo, bullGeo) {
     mesh.rotation.y    = yRot;
     mesh.castShadow    = true;
     mesh.receiveShadow = true;
+    mesh.userData.dartNumber = n;  // used by raycaster to identify which wedge was hit
     scene.add(mesh);
 
     // Point light at mid-radius
@@ -1018,6 +1022,8 @@ function buildBoard(wedgeGeo, bullGeo) {
     emissive: 0x220800, emissiveIntensity: 0.2,
   });
   const bullMesh = new THREE.Mesh(bullGeo, bullMeshData.mat);
+  bullMesh.userData.dartNumber = 25;
+  bullMeshData.mesh = bullMesh;
   scene.add(bullMesh);
 
   // Point light for bull glow
@@ -1056,36 +1062,77 @@ function buildBoard(wedgeGeo, bullGeo) {
 // ─── Tap-to-hit: raycast system ──────────────────────────────────────────────
 const raycaster   = new THREE.Raycaster();
 const _mouse      = new THREE.Vector2();
+const _hitPt      = new THREE.Vector3();
 
-// Invisible flat disc at board-top height — our raycast target
-const hitDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(BOARD_R * 1.05, 64),
-  new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
-);
-hitDisc.rotation.x = -Math.PI / 2;
-hitDisc.position.y = BOARD_H / 2 + 0.01;
+// On-screen debug overlay
+let debugEnabled = false;
+const debugPanel = document.createElement('div');
+debugPanel.style.cssText = 'display:none;position:absolute;bottom:48px;left:8px;font:11px monospace;color:#8f8;background:rgba(0,0,0,0.82);padding:6px 10px;border-radius:4px;pointer-events:auto;user-select:text;-webkit-user-select:text;white-space:pre;line-height:1.6;z-index:999;cursor:pointer;';
+debugPanel.title = 'Tap to copy';
+debugPanel.textContent = '—';
+debugPanel.addEventListener('pointerdown', e => e.stopPropagation());
+debugPanel.addEventListener('click', () => {
+  navigator.clipboard?.writeText(debugPanel.textContent).then(() => {
+    const prev = debugPanel.style.color;
+    debugPanel.style.color = '#fff';
+    setTimeout(() => { debugPanel.style.color = prev; }, 400);
+  });
+});
+// appended to canvas-container in setupTapHit
 
-// Flash ring — a thin torus that fades after a hit
-const flashRing = new THREE.Mesh(
-  new THREE.TorusGeometry(0.12, 0.025, 8, 32),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 })
+let _debugHitLines = ['no hit yet'];
+function setDebug(lines) {
+  if (!debugEnabled) return;
+  _debugHitLines = lines;
+}
+function tickDebug() {
+  if (!debugEnabled) return;
+  const az  = (Math.atan2(camera.position.x, camera.position.z) * 180 / Math.PI).toFixed(1);
+  const el  = (Math.atan2(camera.position.y, Math.sqrt(camera.position.x**2 + camera.position.z**2)) * 180 / Math.PI).toFixed(1);
+  const d   = camera.position.length().toFixed(2);
+  debugPanel.textContent = _debugHitLines.join('\n') + `\n---\ncam az=${az}° el=${el}° dist=${d}`;
+}
+
+// Small dot sprite at the exact hit point on the stone surface
+const flashDot = new THREE.Mesh(
+  new THREE.CircleGeometry(0.045, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false })
 );
-flashRing.rotation.x = -Math.PI / 2;
+flashDot.rotation.x = -Math.PI / 2;
+
+// DOM label that floats above the hit point and fades out
+const flashLabel = document.createElement('div');
+flashLabel.style.cssText = 'position:absolute;pointer-events:none;font:bold 15px monospace;color:#fff;text-shadow:0 0 6px #000,0 0 3px #000;opacity:0;transition:none;white-space:nowrap;transform:translate(-50%,-100%);';
+document.getElementById('canvas-container').appendChild(flashLabel);
 
 let flashTimer = 0;
+const _flashWorld = new THREE.Vector3();
 
 function tickFlash(dt) {
   if (flashTimer <= 0) return;
   flashTimer -= dt;
-  flashRing.material.opacity = Math.max(0, flashTimer / 0.45) * 0.9;
-  if (flashTimer <= 0) flashRing.material.opacity = 0;
+  const t = Math.max(0, flashTimer / 0.7);
+  flashDot.material.opacity = t * 0.85;
+  flashLabel.style.opacity  = t;
+  // Keep label projected to screen position of the dot
+  _flashWorld.copy(flashDot.position);
+  _flashWorld.project(camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  const sx = (_flashWorld.x *  0.5 + 0.5) * rect.width  + rect.left;
+  const sy = (_flashWorld.y * -0.5 + 0.5) * rect.height + rect.top;
+  flashLabel.style.left = sx + 'px';
+  flashLabel.style.top  = (sy - 10) + 'px';
+  if (flashTimer <= 0) { flashDot.material.opacity = 0; flashLabel.style.opacity = 0; }
 }
 
-function spawnFlash(pos, color) {
-  flashRing.position.set(pos.x, BOARD_H / 2 + 0.04, pos.z);
-  flashRing.material.color.set(color);
-  flashRing.material.opacity = 0.9;
-  flashTimer = 0.45;
+function spawnFlash(pos, color, label) {
+  flashDot.position.set(pos.x, pos.y + 0.01, pos.z);
+  flashDot.material.color.set(color);
+  flashDot.material.opacity = 0.85;
+  flashLabel.textContent   = label ?? '';
+  flashLabel.style.color   = '#' + new THREE.Color(color).getHexString();
+  flashLabel.style.opacity = '1';
+  flashTimer = 0.7;
 }
 
 // Determine hit from world-space intersection point on the disc
@@ -1159,24 +1206,64 @@ function onPointerUp(e) {
   );
 
   raycaster.setFromCamera(_mouse, camera);
-  const hits = raycaster.intersectObject(hitDisc);
-  // Tap off the board — do nothing, user can orbit or use Miss button
+  // Only raycast visible (non-dropped) meshes
+  const wStates = wedgeStates();
+  const meshTargets = wedgeMeshData
+    .filter((_, i) => wStates[i].dropY > 0.01)
+    .map(d => d.mesh);
+  const bs = bullState();
+  if (bullMeshData.mesh && bs.dropY > 0.01) meshTargets.push(bullMeshData.mesh);
+  const hits = raycaster.intersectObjects(meshTargets, false);
   if (!hits.length) return;
 
-  const result = classifyHit(hits[0].point);
-  // Tap on disc but outside scoring area — also ignore
-  if (!result) return;
+  const hitMesh  = hits[0].object;
+  const number   = hitMesh.userData.dartNumber;
+  _hitPt.copy(hits[0].point);
 
-  const { number, multiplier, zone, flashCol, hitPt } = result;
+  const r      = Math.sqrt(_hitPt.x * _hitPt.x + _hitPt.z * _hitPt.z);
+  const angDeg = (Math.atan2(_hitPt.x, -_hitPt.z) * 180 / Math.PI).toFixed(1);
 
-  spawnFlash(hitPt, flashCol ?? 0xffffff);
+  // Derive zone from radius alone — number comes from which mesh was hit
+  let multiplier, zone, flashCol;
+  if (number === 25) {
+    if (r <= BULL_INNER_R) { multiplier = 2; zone = 'Inner Bull'; flashCol = 0xffdd00; }
+    else                   { multiplier = 1; zone = 'Outer Bull'; flashCol = 0xffaa00; }
+  } else {
+    const hitWs = game.getWs(number);
+    if (r >= DOUBLE_IN && !hitWs?.closed) {
+      multiplier = 2; zone = 'Double'; flashCol = 0xff2200;
+    } else if (r >= TRIPLE_IN && r <= TRIPLE_OUT && !hitWs?.closed) {
+      multiplier = 3; zone = 'Triple'; flashCol = 0x00dd44;
+    } else {
+      multiplier = 1; zone = 'Single'; flashCol = 0xffffff;
+    }
+  }
+
+  const prefix   = number === 25 ? (multiplier === 2 ? 'IB' : 'OB') : ['','','D','T'][multiplier] ?? '';
+  const flashLbl = number === 25 ? (multiplier === 2 ? 'IB' : 'OB') : (prefix + number);
+  const hitWs    = game.getWs(number);
+  const wsInfo   = hitWs
+    ? `p1=${hitWs.p1marks} p2=${hitWs.p2marks} closed=${hitWs.closed} dropY=${hitWs.dropY.toFixed(2)}`
+    : 'bull';
+  setDebug([
+    `x=${_hitPt.x.toFixed(3)}  z=${_hitPt.z.toFixed(3)}`,
+    `angle=${angDeg}°  r=${r.toFixed(3)}`,
+    `→ ${flashLbl}  (${zone})`,
+    wsInfo,
+  ]);
+
+  spawnFlash(_hitPt, flashCol ?? 0xffffff, flashLbl);
   registerHit(number, multiplier);
   updateLastHitUI();
 }
 
 function setupTapHit() {
-  scene.add(hitDisc);
-  scene.add(flashRing);
+  scene.add(flashDot);
+  document.getElementById('canvas-container').appendChild(debugPanel);
+  document.getElementById('debug-toggle').addEventListener('change', e => {
+    debugEnabled = e.target.checked;
+    debugPanel.style.display = debugEnabled ? '' : 'none';
+  });
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointerup',   onPointerUp);
   renderer.domElement.addEventListener('touchstart',  onPointerDown, { passive: true });
@@ -1529,8 +1616,7 @@ async function loadModels() {
 }
 
 // ─── UI builders ─────────────────────────────────────────────────────────────
-// Scoreboard order: 20 down to 1, then Bull
-const CRICKET_ORDER = [20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,25];
+// CRICKET_ORDER imported from src/game.js
 
 function buildCricketBoard() {
   const board = document.getElementById('cricket-board');
@@ -1768,7 +1854,7 @@ try {
   wireRenameHandler('p2-name-lbl', 2);
 
   const dtClock = new THREE.Clock();
-  renderer.setAnimationLoop(() => {
+  function loop() {
     const t  = clock.getElapsedTime();
     const dt = dtClock.getDelta();
     tickCameraSnap();
@@ -1778,7 +1864,12 @@ try {
     animateTorches(t);
     tickFlash(dt);
     updateWedgeLabels();
+    tickDebug();
     composer.render();
+  }
+  renderer.setAnimationLoop(loop);
+  document.addEventListener('visibilitychange', () => {
+    renderer.setAnimationLoop(document.hidden ? null : loop);
   });
 
 } catch (err) {

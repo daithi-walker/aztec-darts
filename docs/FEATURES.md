@@ -28,22 +28,25 @@ As both players accumulate marks on a number, the stone block shrinks in 3 level
 | 2 | 1/3 |
 | 3 (closed) | Gone (0) |
 
-The block shrinks from the top; the base stays fixed. Rings track the shrinking top face. Transitions are smoothly lerped.
+The block shrinks from the top; the base stays fixed. Rings track the shrinking top face. Transitions are smoothly lerped. When a score edit triggers `replayAll`, stone heights snap instantly to the correct level with no spring-back animation.
 
 ## Flame system
 
-- **GLSL procedural fire**: FBM noise on billboard quads, `AdditiveBlending`, bloom via `UnrealBloomPass`.
+- **GLSL procedural fire**: 2-octave FBM noise on billboard quads, `AdditiveBlending`, bloom via `UnrealBloomPass`.
 - **Glow only** (1–2 marks): emissive stone + ring glow, no flame planes. Intensity proportional to mark lead.
 - **Full fire** (3 marks, opponent not closed): flame planes visible, intensity 1.0. Colour = scoring player's colour.
 - **Burst spike**: on a scoring hit, `flameBurst = 1.0` decays over ~1.5s — spikes flame height and point light.
 - **Colour**: always pure P1 blue (`#2288ff`) or P2 orange (`#ffaa00`). No mixing.
 - **Bull**: own flame planes + point light, animated with the same logic.
+- **Performance**: 4 flame planes per wedge (down from 7); FBM at 2 octaves (down from 4); animation loop pauses when the browser tab is hidden.
 
 ## Tap-to-hit
 
-- Invisible `CircleGeometry` disc at board-top height; `THREE.Raycaster` on pointer/touch up.
-- `classifyHit(pt)` determines zone from radius and `atan2` angle.
-- Off-board taps do nothing (no accidental misses).
+- Raycaster fires against the **actual wedge meshes** (not a fixed-height disc), so hits register on the visible stone surface regardless of camera angle or stone height.
+- Number is determined by **which mesh was hit** — not angle calculation — so clicking the side of an adjacent wedge never misregisters.
+- Zone (Single / Double / Triple) is determined by the hit point radius; Double/Triple are forced to Single on closed numbers (rings are gone).
+- Closed/fully-dropped wedges are excluded from raycast targets entirely.
+- Off-board taps do nothing.
 - Double-tap snaps camera back to home position.
 
 ## Turn bar (top)
@@ -58,7 +61,7 @@ Shows the most recent dart thrown. Fully editable:
 
 - **Number carousel** (‹/›): cycles through `—` (miss), 20, 1, 18, … 5, B (bull), wrapping.
 - **Multiplier buttons**: S / D / T for numbers; O / I for bull; hidden when miss selected.
-- Any change triggers a full replay of history to recalculate all scores.
+- Any change triggers a full replay of history to recalculate all scores. Stone heights snap immediately — no animation spring-back.
 
 ## History & undo
 
@@ -74,6 +77,23 @@ Shows the most recent dart thrown. Fully editable:
 - Enter or blur to save; Escape to cancel.
 - Name reflects immediately in: top bar status, winner message, scoreboard header.
 - Names persist across new games.
+
+## Hit feedback
+
+- A small dot appears at the exact point on the stone surface where the ray hit.
+- A label (e.g. `T20`, `D5`, `OB`, `IB`, `3`) fades in above the dot showing the registered zone and number.
+- Both fade out over ~0.7s.
+- Tap the dot/label colour to confirm the hit was registered correctly.
+
+## Debug overlay
+
+Toggle via the **Debug** checkbox in the footer. Shows on every click:
+
+- Hit coordinates (`x`, `z`) and radius in world units.
+- World-space angle (degrees from 12 o'clock, clockwise).
+- Detected number, zone, and wedge state (marks per player, closed, dropY).
+- Live camera azimuth, elevation, and distance — updates every frame as you orbit.
+- **Tap the panel to copy** all stats to clipboard (panel flashes white to confirm).
 
 ## Demo scenes
 

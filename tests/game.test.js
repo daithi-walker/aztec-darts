@@ -191,6 +191,72 @@ describe('createGame — scoring', () => {
   });
 });
 
+// ── stone height integration (targetDropY via registerHit) ───────────────────
+describe('stone height via registerHit', () => {
+  test('no shared pips → targetDropY stays 1', () => {
+    const g = createGame();
+    g.registerHit(20, 1); // P1 gets 1 mark; P2 has 0
+    assert.equal(g.findWedge(20).targetDropY, 1);
+  });
+
+  test('1 pip each → targetDropY = 2/3', () => {
+    const g = createGame();
+    g.registerHit(20, 1); g.registerMiss(); g.registerMiss(); // P1: 1 mark
+    g.registerHit(20, 1); // P2: 1 mark → shared = 1
+    assert.ok(Math.abs(g.findWedge(20).targetDropY - 2/3) < 0.001);
+  });
+
+  test('2 pips each → targetDropY = 1/3', () => {
+    const g = createGame();
+    g.registerHit(20, 2); g.registerMiss(); g.registerMiss(); // P1: 2 marks, end turn
+    g.registerHit(20, 2); g.registerMiss(); g.registerMiss(); // P2: 2 marks → shared = 2
+    assert.ok(Math.abs(g.findWedge(20).targetDropY - 1/3) < 0.001);
+  });
+
+  test('3 pips each → closed, targetDropY = 0', () => {
+    const g = createGame();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss(); // P1: 3 marks
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss(); // P2: 3 marks → closed
+    assert.equal(g.findWedge(20).targetDropY, 0);
+    assert.equal(g.findWedge(20).closed, true);
+  });
+
+  test('asymmetric: P1 at 3, P2 at 1 → shared = 1, targetDropY = 2/3', () => {
+    const g = createGame();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss(); // P1: 3 marks
+    g.registerHit(20, 1); g.registerMiss(); g.registerMiss(); // P2: 1 mark → shared = 1
+    assert.ok(Math.abs(g.findWedge(20).targetDropY - 2/3) < 0.001);
+  });
+});
+
+// ── replayAll snaps dropY ─────────────────────────────────────────────────────
+describe('replayAll — dropY snap', () => {
+  test('dropY equals targetDropY immediately after replayAll (no spring-back)', () => {
+    const g = createGame();
+    // Get both players a shared pip on 20 so targetDropY < 1
+    g.registerHit(20, 1); g.registerMiss(); g.registerMiss(); // P1: 1 mark
+    g.registerHit(20, 1); g.registerMiss(); g.registerMiss(); // P2: 1 mark → shared=1, targetDropY=2/3
+    // Simulate what the browser does: lerp dropY partway toward target
+    g.findWedge(20).dropY = 0.9; // mid-animation
+    // Trigger a score edit — replayAll should snap dropY, not leave it at 0.9
+    g.replayAll();
+    const ws = g.findWedge(20);
+    assert.ok(Math.abs(ws.dropY - ws.targetDropY) < 0.001,
+      `dropY ${ws.dropY} should equal targetDropY ${ws.targetDropY} after replayAll`);
+  });
+
+  test('bull dropY also snapped after replayAll', () => {
+    const g = createGame();
+    g.registerHit(25, 1); g.registerMiss(); g.registerMiss(); // P1: 1 bull mark
+    g.registerHit(25, 1); g.registerMiss(); g.registerMiss(); // P2: 1 bull mark → shared=1
+    g.getState().bullState.dropY = 0.95; // mid-animation
+    g.replayAll();
+    const bs = g.getState().bullState;
+    assert.ok(Math.abs(bs.dropY - bs.targetDropY) < 0.001,
+      `bull dropY ${bs.dropY} should equal targetDropY ${bs.targetDropY}`);
+  });
+});
+
 // ── replayAll consistency ─────────────────────────────────────────────────────
 describe('replayAll', () => {
   test('replaying same throws produces identical state', () => {
@@ -220,6 +286,38 @@ describe('replayAll', () => {
     g.replayAll();
     assert.equal(g.historyStack.length, stackLenBefore - 1);
     assert.equal(g.findWedge(20).p1marks, 0);
+  });
+});
+
+// ── closed wedge behaviour ────────────────────────────────────────────────────
+describe('closed wedge', () => {
+  test('hitting a closed wedge scores no points and leaves it closed', () => {
+    const g = createGame();
+    // Close 20: both players get 3 marks
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    const ws = g.findWedge(20);
+    assert.equal(ws.closed, true);
+    const ptsBefore = g.getState().p1Points;
+    // P1 hits 20 again — should score nothing
+    g.registerHit(20, 3);
+    assert.equal(g.getState().p1Points, ptsBefore);
+    assert.equal(ws.closed, true);
+  });
+
+  test('closed wedge has targetDropY = 0', () => {
+    const g = createGame();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    assert.equal(g.findWedge(20).targetDropY, 0);
+  });
+
+  test('dropY reaches 0 after replayAll on closed wedge', () => {
+    const g = createGame();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    g.registerHit(20, 3); g.registerMiss(); g.registerMiss();
+    g.replayAll();
+    assert.equal(g.findWedge(20).dropY, 0);
   });
 });
 
